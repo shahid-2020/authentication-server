@@ -1,0 +1,12 @@
+{
+  "watch": ["src"],
+  "ext": "ts,json",
+  "exec": "ts-node -r tsconfig-paths/register --transpile-only src/main.ts",
+  "env": {
+    "NODE_ENV": "dev",
+    "PORT": "3000"
+  },
+  "delay": "250",
+  "signal": "SIGTERM",
+  "restartable": "rs"
+}

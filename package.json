@@ -1,0 +1,36 @@
+{
+  "name": "authentication-server",
+  "version": "1.0.0",
+  "description": "Node.js authentication server",
+  "main": "dist/main.js",
+  "author": "Shahid Islam",
+  "license": "ISC",
+  "type": "module",
+  "scripts": {
+    "prebuild": "rimraf dist",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node ./dist/main.js",
+    "start:dev": "nodemon",
+    "lint": "biome lint --write src test",
+    "lint:check": "biome lint src test",
+    "format": "biome format --write src test",
+    "format:check": "biome format src test",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@personal.github.com:shahid-2020/authentication-server.git"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.2",
+    "@types/node": "^24.9.2",
+    "nodemon": "^3.1.10",
+    "rimraf": "^6.0.1",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.3"
+  }
+}
