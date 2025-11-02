@@ -3,9 +3,10 @@
     "rootDir": "./src",
     "outDir": "./dist",
 
-    "target": "esnext",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
+    "target": "es2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    
     "lib": ["esnext"],
     "types": ["node"],
 

@@ -5,7 +5,7 @@
   "main": "dist/main.js",
   "author": "Shahid Islam",
   "license": "ISC",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "tsc -p tsconfig.build.json",
@@ -24,10 +24,18 @@
     "type": "git",
     "url": "git@personal.github.com:shahid-2020/authentication-server.git"
   },
+  "dependencies": {
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "pino": "^10.1.0",
+    "zod": "^4.1.12"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.3.2",
+    "@types/express": "^5.0.5",
     "@types/node": "^24.9.2",
     "nodemon": "^3.1.10",
+    "pino-pretty": "^13.1.2",
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
