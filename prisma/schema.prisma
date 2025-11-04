@@ -1,0 +1,266 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider        = "prisma-client"
+  previewFeatures = ["postgresqlExtensions"]
+  output          = "../generated/prisma"
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [citext()]
+}
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+  deleted
+
+  @@map("user_status")
+}
+
+enum Gender {
+  male
+  female
+  others
+  undisclosed
+
+  @@map("gender")
+}
+
+model User {
+  id String @id @default(uuid())
+
+  email           String  @unique @db.Citext
+  isEmailVerified Boolean @default(false)
+
+  phoneNumber           String? @db.VarChar(20)
+  isPhoneNumberVerified Boolean @default(false)
+
+  status UserStatus @default(active)
+
+  firstName   String?   @db.VarChar(75)
+  lastName    String?   @db.VarChar(75)
+  displayName String?   @db.VarChar(150)
+  dateOfBirth DateTime? @db.Date
+  gender      Gender?
+
+  avatarUrl String? @db.VarChar(512)
+
+  bio String? @db.VarChar(500)
+
+  timezone String? @db.VarChar(100)
+  locale   String? @db.VarChar(20)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  passwordCredential PasswordCredential?
+  sessions           Session[]
+  auditLogs          AuditLog[]
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model PasswordCredential {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  hash String @db.VarChar(255)
+
+  history Json? @db.JsonB
+
+  mustChangePassword Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("password_credentials")
+}
+
+enum VerificationType {
+  emailVerify
+  magicLink
+  passwordReset
+
+  @@map("verification_type")
+}
+
+model VerificationToken {
+  id    String           @id @default(uuid())
+  type  VerificationType
+  email String           @db.Citext
+
+  tokenHash String @db.VarChar(128)
+
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  attempts Int @default(0)
+
+  metadata Json? @db.JsonB
+
+  createdAt DateTime @default(now())
+
+  @@unique([tokenHash])
+  @@index([type, email, expiresAt])
+  @@map("verification_tokens")
+}
+
+model Session {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  userAgent String? @db.VarChar(512)
+  ip        String? @db.VarChar(45)
+  country   String? @db.VarChar(2)
+  city      String? @db.VarChar(100)
+
+  deviceId   String? @db.VarChar(128)
+  deviceName String? @db.VarChar(100)
+
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt  DateTime
+
+  revoked       Boolean   @default(false)
+  revokedAt     DateTime?
+  revokedReason String?   @db.VarChar(255)
+
+  refreshTokens RefreshToken[]
+
+  @@index([userId, revoked, expiresAt])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  tokenHash String  @id @db.VarChar(128)
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  rotationCnt Int     @default(0)
+  parentHash  String? @db.VarChar(128)
+
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+
+  revoked   Boolean   @default(false)
+  revokedAt DateTime?
+
+  @@index([sessionId, revoked])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+enum AuditAction {
+  signIn
+  signOut
+  signInFailed
+
+  passwordSet
+  passwordChanged
+  passwordReset
+  passwordResetRequested
+
+  emailVerify
+  emailVerifyRequested
+  emailChanged
+
+  accountCreated
+  accountDeleted
+  accountSuspended
+  accountReactivated
+
+  sessionRevoked
+  allSessionsRevoked
+
+  profileUpdated
+
+  @@map("audit_action")
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  actor  String? @db.VarChar(64)
+
+  action   AuditAction
+  resource String?     @db.VarChar(64)
+  target   String?     @db.VarChar(128)
+
+  ip        String? @db.VarChar(45)
+  userAgent String? @db.VarChar(512)
+
+  meta Json? @db.JsonB
+
+  success  Boolean @default(true)
+  errorMsg String? @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+enum SignInFailureCode {
+  invalidCredentials // Wrong email/password
+  accountLocked // Too many failed attempts
+  accountSuspended // Admin suspended the account
+  accountDeleted // Account was deleted
+  accountInactive // User deactivated their account
+  emailNotVerified // Email not verified yet
+  tooManyAttempts // Rate limit exceeded
+  ipBlocked // IP address is blocked
+}
+
+model SignInAttempt {
+  id String @id @default(uuid())
+
+  email String? @db.Citext
+  ip    String  @db.VarChar(45)
+
+  userAgent String? @db.VarChar(512)
+
+  successful  Boolean            @default(false)
+  failureCode SignInFailureCode?
+
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+  @@map("sign_in_attempts")
+}
+
+model AccountLockout {
+  id String @id @default(uuid())
+
+  email String? @db.Citext
+  ip    String? @db.VarChar(45)
+
+  reason      String   @db.VarChar(100)
+  lockedUntil DateTime
+
+  attempts Int @default(0)
+
+  active Boolean @default(true)
+
+  createdAt  DateTime  @default(now())
+  releasedAt DateTime?
+
+  @@index([email, active, lockedUntil])
+  @@index([ip, active, lockedUntil])
+  @@map("account_lockouts")
+}

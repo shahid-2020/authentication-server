@@ -4,6 +4,7 @@ import { logger } from './logger';
 const envSchem = z.object({
 	NODE_ENV: z.enum(['dev', 'tst', 'stg', 'prd']),
 	PORT: z.coerce.number().default(3000),
+	DATABASE_URL: z.url(),
 });
 
 const parsed = envSchem.safeParse(process.env);
