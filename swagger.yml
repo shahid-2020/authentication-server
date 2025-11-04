@@ -1,0 +1,828 @@
+openapi: 3.0.3
+info:
+  title: Authentication Microservice API
+  description: |
+    Secure authentication microservice with email/password authentication, 
+    session management, and comprehensive audit logging.
+    
+    ## Security Features
+    - Bcrypt/Argon2id password hashing
+    - JWT access tokens + refresh token rotation
+    - Rate limiting and brute-force protection
+    - Email verification
+    - Password reset with secure tokens
+    - Comprehensive audit logging
+    
+    ## Authentication Flow
+    1. Register with email/password
+    2. Verify email via token
+    3. Sign in to receive access token + refresh token
+    4. Use access token for authenticated requests
+    5. Refresh access token when expired
+    
+  version: 1.0.0
+  contact:
+    name: Shahid Islam
+    email: khanshahid9283@gmail.com
+
+servers:
+  - url: https://auth.example.com/api/v1
+    description: Production server
+  - url: https://stg.auth.example.com/api/v1
+    description: Staging server
+  - url: http://localhost:3000/api/v1
+    description: Local development server
+
+tags:
+  - name: Tokens
+    description: User authentication operations
+  - name: Users
+    description: User management operations
+  - name: Sessions
+    description: Session management operations
+
+security:
+  - BearerAuth: []
+
+paths:
+  /users:
+    post:
+      tags:
+        - Users
+      summary: Create a new user
+      description: Create a new user account with email and password. Returns 201 Created.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: SecureP@ssw0rd
+                firstName:
+                  type: string
+                  maxLength: 75
+                  example: John
+                lastName:
+                  type: string
+                  maxLength: 75
+                  example: Doe
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /users/me:
+    get:
+      tags:
+        - Users
+      summary: Get current user profile
+      description: Retrieve the authenticated user's profile information
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+    patch:
+      tags:
+        - Users
+      summary: Update current user profile
+      description: Update the authenticated user's profile information (partial update)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                  maxLength: 75
+                lastName:
+                  type: string
+                  maxLength: 75
+                displayName:
+                  type: string
+                  maxLength: 150
+                dateOfBirth:
+                  type: string
+                  format: date
+                gender:
+                  $ref: '#/components/schemas/Gender'
+                bio:
+                  type: string
+                  maxLength: 500
+                phoneNumber:
+                  type: string
+                  maxLength: 20
+                timezone:
+                  type: string
+                  maxLength: 100
+                  example: America/New_York
+                locale:
+                  type: string
+                  maxLength: 20
+                  example: en-US
+      responses:
+        '200':
+          description: User profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /tokens:
+    post:
+      tags:
+        - Tokens
+      summary: Sign in with email and password
+      description: Authenticate user and receive access token and refresh token. Creates a new session.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  example: SecureP@ssw0rd
+                deviceName:
+                  type: string
+                  maxLength: 100
+                  example: iPhone 14 Pro
+                deviceId:
+                  type: string
+                  maxLength: 128
+                  example: device-fingerprint-hash
+      responses:
+        '201':
+          description: Sign in successful, session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignInResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+          
+  /tokens:refresh:
+    post:
+      tags:
+        - Tokens
+      summary: Refresh access token (custom method)
+      description: Get a new access token using refresh token with automatic token rotation
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+  
+  /tokens:revoke:        
+    post:
+      tags:
+        - Tokens
+      summary: Sign out (revoke session)
+      description: Revoke a specific session and its refresh token
+      responses:
+        '204':
+          description: Session revoked successfully (signed out)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /tokens:revoke-all:
+    post:
+      tags:
+        - Tokens
+      summary: Sign out all sessions (custom method)
+      description: Revoke all active sessions for the current user except the current one
+      responses:
+        '204':
+          description: All sessions revoked successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /sessions:
+    get:
+      tags:
+        - Sessions
+      summary: Get all active sessions
+      description: Retrieve all active sessions for the authenticated user
+      parameters:
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Sessions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SessionResponse'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /sessions/{sessionId}:
+    get:
+      tags:
+        - Sessions
+      summary: Get session by ID
+      description: Retrieve details of a specific session
+      parameters:
+        - $ref: '#/components/parameters/SessionIdParam'
+      responses:
+        '200':
+          description: Session retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+
+  /users:change-password:
+    post:
+      tags:
+        - Users
+      summary: Change password (custom method)
+      description: Change the authenticated user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                  format: password
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        '204':
+          description: Password changed successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /users:request-password-reset:
+    post:
+      tags:
+        - Users
+      summary: Request password reset
+      description: Send password reset email to user. Always returns 204 for security (even if email doesn't exist).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        '204':
+          description: Password reset request processed (email sent if account exists)
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /users:confirm-password-reset:
+    post:
+      tags:
+        - Users
+      summary: Confirm password reset with token (custom method)
+      description: Reset password using the token received via email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - newPassword
+              properties:
+                token:
+                  type: string
+                  example: abc123def456ghi789
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        '204':
+          description: Password reset successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /users:request-email-verify:
+    post:
+      tags:
+        - Users
+      summary: Request email verification
+      description: Send verification email to the authenticated user
+      responses:
+        '204':
+          description: Verification email sent
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /users:confirm-email-verify:
+    post:
+      tags:
+        - Users
+      summary: Confirm email verification (custom method)
+      description: Verify user's email address using the token received via email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  example: abc123def456ghi789
+      responses:
+        '204':
+          description: Email verified successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from sign in or refresh endpoints
+
+  parameters:
+    SessionIdParam:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Session ID (UUID)
+      example: 660f9500-f39c-52e5-b827-557766551111
+
+  schemas:
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        isEmailVerified:
+          type: boolean
+          example: true
+        phoneNumber:
+          type: string
+          nullable: true
+          example: "+1234567890"
+        isPhoneNumberVerified:
+          type: boolean
+          example: false
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        firstName:
+          type: string
+          nullable: true
+          example: John
+        lastName:
+          type: string
+          nullable: true
+          example: Doe
+        displayName:
+          type: string
+          nullable: true
+          example: John Doe
+        dateOfBirth:
+          type: string
+          format: date
+          nullable: true
+          example: "1990-01-15"
+        gender:
+          $ref: '#/components/schemas/Gender'
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: https://cdn.example.com/avatars/user123.jpg
+        bio:
+          type: string
+          nullable: true
+          example: Software engineer passionate about building great products
+        timezone:
+          type: string
+          nullable: true
+          example: America/New_York
+        locale:
+          type: string
+          nullable: true
+          example: en-US
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-01-01T12:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T14:30:00.000Z"
+
+    SignInResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token (valid for 15 minutes)
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refreshToken:
+          type: string
+          description: Refresh token for obtaining new access tokens (valid for 30 days)
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        expiresIn:
+          type: integer
+          description: Access token expiration time in seconds
+          example: 900
+        tokenType:
+          type: string
+          example: Bearer
+
+    RefreshResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: New JWT access token
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refreshToken:
+          type: string
+          description: New refresh token (rotated)
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        expiresIn:
+          type: integer
+          description: Access token expiration time in seconds
+          example: 900
+        tokenType:
+          type: string
+          example: Bearer
+
+    SessionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 660f9500-f39c-52e5-b827-557766551111
+        userId:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        deviceName:
+          type: string
+          nullable: true
+          example: iPhone 14 Pro
+        deviceId:
+          type: string
+          nullable: true
+          example: device-fingerprint-hash
+        ip:
+          type: string
+          nullable: true
+          example: 192.168.1.1
+        country:
+          type: string
+          nullable: true
+          example: US
+        city:
+          type: string
+          nullable: true
+          example: New York
+        userAgent:
+          type: string
+          nullable: true
+          example: Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-01-01T12:00:00.000Z"
+        lastSeenAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T14:30:00.000Z"
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2025-01-31T12:00:00.000Z"
+
+    UserStatus:
+      type: string
+      enum:
+        - active
+        - inactive
+        - suspended
+        - deleted
+      example: active
+
+    Gender:
+      type: string
+      enum:
+        - male
+        - female
+        - others
+        - undisclosed
+      nullable: true
+      example: male
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 150
+        totalPages:
+          type: integer
+          example: 8
+
+    # Error Schemas
+    ErrorResponse:
+      type: object
+      required:
+        - statusCode
+        - message
+        - uri
+        - date
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: Bad Request
+        errorCode:
+          type: string
+          example: VALIDATION_ERROR
+        cause:
+          type: string
+          example: Email is required
+        causes:
+          type: array
+          items:
+            type: string
+          example:
+            - Email is required
+            - Password must be at least 8 characters
+        uri:
+          type: string
+          format: uri
+          example: http://api.example.com/api/v1/auth/registrations
+        date:
+          type: string
+          format: date-time
+          example: "2025-01-15T14:30:00.000Z"
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 400
+            message: Bad Request
+            errorCode: INVALID_INPUT
+            cause: Invalid request format
+            uri: http://api.example.com/api/v1/auth/sessions
+            date: "2025-01-15T14:30:00.000Z"
+
+    Unauthorized:
+      description: Unauthorized - authentication required or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 401
+            message: Unauthorized
+            errorCode: INVALID_CREDENTIALS
+            cause: Invalid email or password
+            uri: http://api.example.com/api/v1/auth/sessions
+            date: "2025-01-15T14:30:00.000Z"
+
+    Forbidden:
+      description: Forbidden - insufficient permissions or account issues
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 403
+            message: Forbidden
+            errorCode: ACCOUNT_SUSPENDED
+            cause: Your account has been suspended
+            uri: http://api.example.com/api/v1/auth/sessions
+            date: "2025-01-15T14:30:00.000Z"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 404
+            message: Not Found
+            errorCode: RESOURCE_NOT_FOUND
+            cause: User not found
+            uri: http://api.example.com/api/v1/users/550e8400-e29b-41d4-a716-446655440000
+            date: "2025-01-15T14:30:00.000Z"
+
+    ValidationError:
+      description: Unprocessable Entity - validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 422
+            message: Unprocessable Entity
+            errorCode: VALIDATION_ERROR
+            causes:
+              - Email is already registered
+              - Password must contain at least one uppercase letter
+            uri: http://api.example.com/api/v1/auth/registrations
+            date: "2025-01-15T14:30:00.000Z"
+
+    RateLimitExceeded:
+      description: Too many requests - rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+          description: Request limit per time window
+          example: 5
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+          description: Remaining requests in current window
+          example: 0
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Unix timestamp when the rate limit resets
+          example: 1705329600
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+          example: 300
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 429
+            message: Too Many Requests
+            errorCode: RATE_LIMIT_EXCEEDED
+            cause: Too many sign in attempts. Please try again in 5 minutes.
+            uri: http://api.example.com/api/v1/auth/sessions
+            date: "2025-01-15T14:30:00.000Z"
