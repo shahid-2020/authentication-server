@@ -19,6 +19,7 @@ datasource db {
 enum UserStatus {
   active
   inactive
+  locked
   suspended
   deleted
 
@@ -45,9 +46,10 @@ model User {
 
   status UserStatus @default(active)
 
-  firstName   String?   @db.VarChar(75)
+  firstName   String   @db.VarChar(75)
+  middleName   String?   @db.VarChar(75)
   lastName    String?   @db.VarChar(75)
-  displayName String?   @db.VarChar(150)
+  displayName String   @db.VarChar(150)
   dateOfBirth DateTime? @db.Date
   gender      Gender?
 
@@ -67,20 +69,18 @@ model User {
   auditLogs          AuditLog[]
 
   @@index([email])
-  @@index([status])
+  @@index([email, status])
   @@index([createdAt])
   @@map("users")
 }
 
 model PasswordCredential {
+  id String @id @default(uuid())
+  
   userId String @id
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   hash String @db.VarChar(255)
-
-  history Json? @db.JsonB
-
-  mustChangePassword Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -90,7 +90,6 @@ model PasswordCredential {
 
 enum VerificationType {
   emailVerify
-  magicLink
   passwordReset
 
   @@map("verification_type")
@@ -178,15 +177,11 @@ enum AuditAction {
   emailVerifyRequested
   emailChanged
 
-  accountCreated
-  accountDeleted
-  accountSuspended
-  accountReactivated
+  userCreated
+  userUpdated
 
   sessionRevoked
   allSessionsRevoked
-
-  profileUpdated
 
   @@map("audit_action")
 }
@@ -242,25 +237,4 @@ model SignInAttempt {
   @@index([email, createdAt])
   @@index([ip, createdAt])
   @@map("sign_in_attempts")
-}
-
-model AccountLockout {
-  id String @id @default(uuid())
-
-  email String? @db.Citext
-  ip    String? @db.VarChar(45)
-
-  reason      String   @db.VarChar(100)
-  lockedUntil DateTime
-
-  attempts Int @default(0)
-
-  active Boolean @default(true)
-
-  createdAt  DateTime  @default(now())
-  releasedAt DateTime?
-
-  @@index([email, active, lockedUntil])
-  @@index([ip, active, lockedUntil])
-  @@map("account_lockouts")
 }

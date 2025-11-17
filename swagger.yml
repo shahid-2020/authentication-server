@@ -22,8 +22,8 @@ info:
     
   version: 1.0.0
   contact:
-    name: Shahid Islam
-    email: khanshahid9283@gmail.com
+    name: API Support
+    email: support@example.com
 
 servers:
   - url: https://auth.example.com/api/v1
@@ -61,24 +61,84 @@ paths:
               required:
                 - email
                 - password
+                - firstName
+                - displayName
               properties:
                 email:
                   type: string
                   format: email
                   example: user@example.com
+                  description: User's email address (will be converted to lowercase)
                 password:
                   type: string
                   format: password
                   minLength: 8
+                  maxLength: 128
                   example: SecureP@ssw0rd
+                  description: Must contain at least one uppercase letter, one lowercase letter, one number, and one special character
+                phoneNumber:
+                  type: string
+                  maxLength: 20
+                  example: "+1234567890"
+                  description: Phone number in international format (E.164)
+                  pattern: '^\+?[1-9]\d{1,14}$'
                 firstName:
                   type: string
+                  minLength: 1
                   maxLength: 75
                   example: John
+                  description: User's first name
+                middleName:
+                  type: string
+                  maxLength: 75
+                  example: Michael
+                  description: User's middle name (optional)
                 lastName:
                   type: string
                   maxLength: 75
                   example: Doe
+                  description: User's last name (optional)
+                displayName:
+                  type: string
+                  minLength: 1
+                  maxLength: 150
+                  example: John Doe
+                  description: Display name for the user
+                dateOfBirth:
+                  type: string
+                  format: date
+                  example: "1990-01-15"
+                  description: User's date of birth (must be in the past)
+                gender:
+                  type: string
+                  enum:
+                    - male
+                    - female
+                    - others
+                    - undisclosed
+                  example: male
+                  description: User's gender
+                avatarUrl:
+                  type: string
+                  format: uri
+                  maxLength: 512
+                  example: "https://example.com/avatar.jpg"
+                  description: URL to user's avatar image
+                bio:
+                  type: string
+                  maxLength: 500
+                  example: "Software developer passionate about building great products"
+                  description: User's biography
+                timezone:
+                  type: string
+                  maxLength: 100
+                  example: "Asia/Kolkata"
+                  description: User's timezone
+                locale:
+                  type: string
+                  maxLength: 20
+                  example: "en-US"
+                  description: User's locale/language preference
       responses:
         '201':
           description: User created successfully
@@ -171,80 +231,91 @@ paths:
     post:
       tags:
         - Tokens
-      summary: Sign in with email and password
-      description: Authenticate user and receive access token and refresh token. Creates a new session.
+      summary: Obtain tokens (password or refresh)
+      description: Authenticate with email/password or refresh an existing session based on grantType.
       security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - email
-                - password
-              properties:
-                email:
-                  type: string
-                  format: email
-                  example: user@example.com
-                password:
-                  type: string
-                  format: password
-                  example: SecureP@ssw0rd
-                deviceName:
-                  type: string
-                  maxLength: 100
-                  example: iPhone 14 Pro
-                deviceId:
-                  type: string
-                  maxLength: 128
-                  example: device-fingerprint-hash
+              oneOf:
+                - type: object
+                  required:
+                    - grant_type
+                    - email
+                    - password
+                  properties:
+                    grantType:
+                      type: string
+                      enum: [password]
+                    email:
+                      type: string
+                      format: email
+                      example: user@example.com
+                    password:
+                      type: string
+                      format: password
+                      example: SecureP@ssw0rd
+                    device_name:
+                      type: string
+                      maxLength: 100
+                      example: iPhone 14 Pro
+                    device_id:
+                      type: string
+                      maxLength: 128
+                      example: device-fingerprint-hash
+                - type: object
+                  required:
+                    - grant_type
+                    - refresh_token
+                  properties:
+                    grantType:
+                      type: string
+                      enum: [refresh_token]
+                    refreshToken:
+                      type: string
+                      example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+              discriminator:
+                propertyName: grant_type
+                mapping:
+                  password: '#/paths/~1tokens/post/requestBody/content/application~1json/schema/oneOf/0'
+                  refresh_token: '#/paths/~1tokens/post/requestBody/content/application~1json/schema/oneOf/1'
+            examples:
+              password:
+                summary: Password grant
+                value:
+                  grant_type: password
+                  email: user@example.com
+                  password: SecureP@ssw0rd
+                  device_name: MacBook Pro
+                  device_id: device-fingerprint-hash
+              refresh:
+                summary: Refresh token grant
+                value:
+                  grant_type: refresh_token
+                  refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
       responses:
         '201':
-          description: Sign in successful, session created
+          description: Sign in successful, session created (password grant)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SignInResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '429':
-          $ref: '#/components/responses/RateLimitExceeded'
-          
-  /tokens:refresh:
-    post:
-      tags:
-        - Tokens
-      summary: Refresh access token (custom method)
-      description: Get a new access token using refresh token with automatic token rotation
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - refreshToken
-              properties:
-                refreshToken:
-                  type: string
-                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-      responses:
         '200':
-          description: Token refreshed successfully
+          description: Token refreshed successfully (refresh_token grant)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RefreshResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/RateLimitExceeded'
-  
+
+
   /tokens:revoke:        
     post:
       tags:
@@ -564,38 +635,38 @@ components:
     SignInResponse:
       type: object
       properties:
-        accessToken:
+        access_token:
           type: string
           description: JWT access token (valid for 15 minutes)
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-        refreshToken:
+        refresh_token:
           type: string
           description: Refresh token for obtaining new access tokens (valid for 30 days)
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-        expiresIn:
+        expires_in:
           type: integer
           description: Access token expiration time in seconds
-          example: 900
-        tokenType:
+          example: 3600
+        token_type:
           type: string
           example: Bearer
 
     RefreshResponse:
       type: object
       properties:
-        accessToken:
+        access_token:
           type: string
           description: New JWT access token
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-        refreshToken:
+        refresh_token:
           type: string
           description: New refresh token (rotated)
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-        expiresIn:
+        expires_in:
           type: integer
           description: Access token expiration time in seconds
-          example: 900
-        tokenType:
+          example: 3600
+        token_type:
           type: string
           example: Bearer
 
@@ -669,20 +740,16 @@ components:
     Pagination:
       type: object
       properties:
-        page:
+        offset:
           type: integer
           example: 1
         limit:
           type: integer
           example: 20
-        total:
+        totalCount:
           type: integer
           example: 150
-        totalPages:
-          type: integer
-          example: 8
 
-    # Error Schemas
     ErrorResponse:
       type: object
       required:

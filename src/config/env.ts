@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { logger } from './logger';
+import { logger } from '../lib/logger';
 
 const envSchem = z.object({
 	NODE_ENV: z.enum(['dev', 'tst', 'stg', 'prd']),
